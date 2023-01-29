@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "openai": "^3.1.0",
     "twilio": "^3.84.1"
   }
 }
