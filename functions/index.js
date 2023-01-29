@@ -7,6 +7,7 @@ const twilio = require("twilio")
 const openai_key = defineString("OPENAI_KEY")
 const accountSid = defineString("TWILIO_ACCOUNT_SID")
 const authToken = defineString("TWILIO_AUTH_TOKEN")
+const { Expo } = require('expo-server-sdk')
 admin.initializeApp();
 
 
@@ -36,6 +37,7 @@ async function getEmergencyDoc() {
 async function getResponse(question) {
   const doc_ref = await getEmergencyDoc()
   const data = doc_ref.data()
+  console.log("MAINFRAMEMINARMEAIMFIEMARMAEIRNAEIFM" + JSON.stringify(data))
   const configuration = new Configuration({
     apiKey: openai_key.value(),
   })
@@ -44,7 +46,7 @@ async function getResponse(question) {
 
   const completion = await openai.createCompletion({
     model: "text-davinci-003",
-    prompt: `Imagine you are reporting an emergency to 911 regarding a patient. The patient is a ${data.age} year old ${data.sex} and is suffering from a ${data.emergencyType}. The operator asks you, '${question}' How do you respond as concisely and accurately as possible? Say 'I don't know' if you do not have enough data to accurately respond.`
+    prompt: `Imagine you are reporting an emergency to 911 regarding a patient. The patient is a ${data.age} year old ${data.sex} and is suffering from a ${data.emergencyType}. The patient has a cholesterol of ${data.chol}, a fasting blood sugar of ${data.fastingBloodSugar}, a chest pain type of ${data.Chestpain}, and is located at latitude: ${data.latitude} and longitude: ${data.longitude} The operator asks you, '${question}' How do you respond as concisely and accurately as possible? Say 'I don't know' if you do not have enough data to accurately respond.`
   })
 
 
@@ -76,17 +78,14 @@ exports.gather = functions.https.onRequest(async(req, res) => {
   console.log("Question Received")
   console.log(req.body.SpeechResult)
   if (req.body.SpeechResult) {
-    const doc_ref = await getEmergencyDoc()
+    const doc_snap = await getEmergencyDoc()
     console.log("Victim Data")
-    console.log(doc_ref)
-    console.log(doc_ref.id)
-    const previous_responses = doc_ref.data()['responses']
-    doc_ref.ref.update({
-      responses: [...previous_responses, req.body.SpeechResult],
-    })
+    console.log(doc_snap)
+    console.log(doc_snap.id)
+    const previous_responses = doc_snap.data()['responses']
     const completion = await getResponse(req.body.SpeechResult)
-    doc_ref.update({
-      responses: [...previous_responses, completion]
+    doc_snap.ref.update({
+      responses: [...previous_responses, req.body.SpeechResult, completion]
     })
     console.log("GPT-3 Response")
     console.log(completion)
@@ -103,6 +102,8 @@ exports.gather = functions.https.onRequest(async(req, res) => {
 function dispatchFirstResponders(snap) {
   const client = twilio(accountSid.value(), authToken.value());
   const data = snap.data()
+  console.log("SDJKHGKSDJHGJKDSHGKJSDHGHDSKGHSDJKGHSJDKHGJKSHJGDK" + JSON.stringify(data))
+
   const message = `This is a ZeroResponder alert. A ${data.age} year old ${data.sex} is suffering from ${data.emergencyType}.`
   client.calls
       .create({
@@ -112,28 +113,51 @@ function dispatchFirstResponders(snap) {
        })
       .then(call => console.log(call.sid));
   snap.ref.update({
-    responses: [message]
+    responses: [message],
+    requiresCalling: false,
   })
 }
 
+// exports.deleteEmergencies = functions.firestore
+//   .document("emergencies/victimId")
+//   .onCreate(async(snap, context) => {
+
+//   })
+
+  
 exports.alertResponders = functions.firestore
   .document("emergencies/{victimId}")
-  .onCreate(async(snap, context) => {
+  .onUpdate(async(snap, context) => {
+    console.log("Document updated")
+    const victim_data = snap.after.data();
+    console.log(victim_data.emergencySurveyTaken)
+    console.log("VICTIM DATA" + JSON.stringify(victim_data))
+    if (victim_data.emergencySurveyTaken && (victim_data.requiresCalling)) {
+      console.log("Survey completed, dispatching.")
+      dispatchFirstResponders(snap.after)
 
-    const victim_data = snap.data();
+      const users = await admin.firestore().collection("users")
+      const snapshot = await users.get();
 
-    const users = await admin.firestore().collection("users")
-    const snapshot = await users.get();
-
-    snapshot.forEach(doc => {
-      console.log(doc.id);
-      responder_data = doc.data();
-      const comfortable_responses = responder_data['willingToRespond']
-      if (comfortable_responses) {
-        if (comfortable_responses.includes(victim_data['type'])) {
-          console.log("Found a responder")
-          //Notify here
+      snapshot.forEach(doc => {
+        responder_data = doc.data();
+        console.log(doc.id)
+        const comfortable_responses = responder_data['willingToRespond']
+        console.log(comfortable_responses)
+        console.log(victim_data['emergencyType'])
+        if (comfortable_responses) {
+          if (comfortable_responses.includes(victim_data['emergencyType'])) {
+            console.log("Found a responder")
+            let messages = []
+            console.log(responder_data['token'])
+            messages.push({
+              to: responder_data['token'],
+              sound: 'default',
+              body: 'Someone needs your help!!',
+            })
+          }
         }
-      }
-    })
+      })
+    }
+
   })

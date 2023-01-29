@@ -1,5 +1,7 @@
 {
   "dependencies": {
+    "expo-server-sdk": "^3.7.0",
+    "firebase-functions": "^4.2.0",
     "openai": "^3.1.0",
     "twilio": "^3.84.1"
   }
