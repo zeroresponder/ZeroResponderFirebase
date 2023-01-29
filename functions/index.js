@@ -3,40 +3,56 @@ const admin = require('firebase-admin');
 const { defineString } = require('firebase-functions/params');
 const VoiceResponse = require('twilio').twiml.VoiceResponse;
 const { Configuration, OpenAIApi} = require("openai");
-const OPENAI_KEY = defineString("OPENAI_KEY")
+const openai_key = defineString("OPENAI_KEY")
 admin.initializeApp();
-
-const configuration = new Configuration({
-  apiKey: OPENAI_KEY,
-})
+const currentDate = new Date();
+const timestamp = currentDate.getTime();
 
 async function getData() {
-  const victim_data = await admin.firestore().collection("emergencies").doc("neelsdying").data()
-  return victim_data
+  return await admin.firestore().collection("emergencies")
+    .limit(1)
+    .get()
+    .then(querySnapshot => {
+      if (!querySnapshot.empty) {
+        const queryDocumentSnapshot = querySnapshot.docs[0];
+        return queryDocumentSnapshot.data();
+      } else {
+        return "empty"
+      }
+    })
 }
 
 
 exports.test = functions.https.onRequest(async(req, res) => {
-  console.log(OPENAI_KEY.value())
-  const openai = new OpenAIApi(configuration);
+  const data = await getData();
+  console.log(data)
+  res.send(data)
+})
 
-  const question = "How old is the patient?"
+
+async function getResponse(question) {
+  const data = getData()
+  const configuration = new Configuration({
+    apiKey: openai_key.value(),
+  })
+
+  const openai = new OpenAIApi(configuration);
 
   const completion = await openai.createCompletion({
     model: "text-davinci-003",
-    prompt: "Imagine you are reporting an emergency to 911 regarding a patient. The patient is 27 years old, male, cholesterol of 407, and 130 fasting blood sugar. The operator asks you, " + question + " How do you respond as concisely as possible?",
+    prompt: "Imagine you are reporting an emergency to 911 regarding a patient. The patient is a " + data.age + " " + data.sex + ", " + "has a cholesterol of " + data.chol + "mg/dl and a fasting blood sugar of " + data.fbs + " mg/dl. The operator asks you, '" + question + "' How do you respond as concisely as possible?",
   })
 
 
-  res.json((completion.data.choices[0].text));
-})
+  return (completion.data.choices[0].text)
+}
 
 
 exports.call = functions.https.onRequest(async(req, res) => {
   const resp = new VoiceResponse()
   const gather = resp.gather({
       input: "speech",
-      timeout: 5,
+      timeout: 3,
       action: "/gather"
     })
 
@@ -54,10 +70,16 @@ exports.gather = functions.https.onRequest(async(req, res) => {
 
   console.log("RECEVIED QUESTION")
   console.log(req.body.SpeechResult)
-  const doc_ref = await admin.firestore().collection("emergencies").doc("neelsdying")
-  doc_ref.update({
-    response: req.body.SpeechResult,
-  })
+  if (req.body.SpeechResult) {
+    const doc_ref = await admin.firestore().collection("emergencies").doc("neelsdying")
+    doc_ref.update({
+      response: req.body.SpeechResult,
+    })
+    const completion = await getResponse(req.body.SpeechResult)
+    console.log("AI COMPLETION")
+    console.log(completion)
+    resp.say(completion)
+  }
 
   resp.redirect("/call")
 
