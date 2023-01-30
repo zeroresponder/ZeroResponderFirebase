@@ -46,6 +46,7 @@ async function getResponse(question) {
 
   const completion = await openai.createCompletion({
     model: "text-davinci-003",
+    max_tokens: 256,
     prompt: `Imagine you are reporting an emergency to 911 regarding a patient. The patient is a ${data.age} year old ${data.sex} and is suffering from a ${data.emergencyType}. The patient has a cholesterol of ${data.chol}, a fasting blood sugar of ${data.fastingBloodSugar}, a chest pain type of ${data.Chestpain}, and is located at latitude: ${data.latitude} and longitude: ${data.longitude} The operator asks you, '${question}' How do you respond as concisely and accurately as possible? Say 'I don't know' if you do not have enough data to accurately respond.`
   })
 
@@ -124,7 +125,7 @@ function dispatchFirstResponders(snap) {
 
 //   })
 
-  
+
 exports.alertResponders = functions.firestore
   .document("emergencies/{victimId}")
   .onUpdate(async(snap, context) => {
