@@ -11,6 +11,14 @@ const { Expo } = require('expo-server-sdk')
 admin.initializeApp();
 
 
+exports.newUser = functions.auth.user().onCreate((user) => {
+  return admin.firestore()
+    .collection("users")
+    .doc(user.uid)
+    .create(JSON.parse(JSON.stringify(user)));
+});
+
+
 async function getEmergencyDoc() {
   return await admin.firestore().collection("emergencies")
     .limit(1)
