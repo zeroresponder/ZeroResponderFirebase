@@ -45,7 +45,7 @@ async function getEmergencyDoc() {
 async function getResponse(question) {
   const doc_ref = await getEmergencyDoc()
   const data = doc_ref.data()
-  console.log("MAINFRAMEMINARMEAIMFIEMARMAEIRNAEIFM" + JSON.stringify(data))
+  console.log("Data being sent to GPT " + data)
   const configuration = new Configuration({
     apiKey: openai_key.value(),
   })
@@ -53,9 +53,11 @@ async function getResponse(question) {
   const openai = new OpenAIApi(configuration);
 
   const completion = await openai.createCompletion({
-    model: "text-davinci-003",
-    max_tokens: 256,
-    prompt: `Imagine you are reporting an emergency to 911 regarding a patient. The patient is a ${data.age} year old ${data.sex} and is suffering from a ${data.emergencyType}. The patient has a cholesterol of ${data.chol}, a fasting blood sugar of ${data.fastingBloodSugar}, a chest pain type of ${data.Chestpain}, and is located at latitude: ${data.latitude} and longitude: ${data.longitude} The operator asks you, '${question}' How do you respond as concisely and accurately as possible? Say 'I don't know' if you do not have enough data to accurately respond.`
+    model: "gpt-3.5-turbo",
+    messages: [
+      {"role": "system", "content": `Imagine you are reporting an emergency to 911 regarding a patient with the following data. ${data} \nWhen the operator asks you a question, respond as concisely and accurately as possible. Say 'I don't know' if you do not have enough data to accurately respond.`},
+      {"role": "user", "content": question},
+    ],
   })
 
 
